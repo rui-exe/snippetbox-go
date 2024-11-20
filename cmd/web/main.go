@@ -25,12 +25,8 @@ type application struct {
 func main() {
 	dsn := flag.String("dsn", "web:pass@/snippetbox?parseTime=true", "MySQL data source name")
 	addr := flag.String("addr", ":4000", "HTTP network address")
-	// Define a new command-line flag for the session secret (a random key which
-	// will be used to encrypt and authenticate session cookies). It should be 32
-	// bytes long.
 	secret := flag.String("secret", "s6Ndh+pPbnzHbS*+9Pk8qGWhTzbpa@ge", "Secret key")
 	flag.Parse()
-
 	infoLog := log.New(os.Stdout, "INFO\t", log.Ldate|log.Ltime)
 	errorLog := log.New(os.Stderr, "ERROR\t", log.Ldate|log.Ltime|log.Lshortfile)
 	db, err := openDB(*dsn)
@@ -38,18 +34,13 @@ func main() {
 		errorLog.Fatal(err)
 	}
 	defer db.Close()
-	// Initialize a new template cache...
 	templateCache, err := newTemplateCache("./ui/html/")
 	if err != nil {
 		errorLog.Fatal(err)
 	}
-
-	// Use the sessions.New() function to initialize a new session manager,
-	// passing in the secret key as the parameter. Then we configure it so
-	// sessions always expires after 12 hours.
 	session := sessions.New([]byte(*secret))
 	session.Lifetime = 12 * time.Hour
-
+	session.Secure = true // Set the Secure flag on our session cookies
 	app := &application{
 		errorLog:      errorLog,
 		infoLog:       infoLog,
@@ -63,7 +54,10 @@ func main() {
 		Handler:  app.routes(),
 	}
 	infoLog.Printf("Starting server on %s", *addr)
-	err = srv.ListenAndServe()
+	// Use the ListenAndServeTLS() method to start the HTTPS server. We
+	// pass in the paths to the TLS certificate and corresponding private key as
+	// the two parameters.
+	err = srv.ListenAndServeTLS("./tls/cert.pem", "./tls/key.pem")
 	errorLog.Fatal(err)
 }
 
